@@ -3,401 +3,300 @@ from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.style as style
 import numpy as np
-from scheduling_algorithms import (
-    Process,
-    fcfs_scheduling,
-    sjf_scheduling,
-    round_robin_scheduling,
-    priority_scheduling
-)
+from scheduling_algorithms import Process, fcfs_scheduling, sjf_scheduling, round_robin_scheduling, priority_scheduling
 
-class CPUSchedulerGUI:
+class ModernCPUScheduler:
     def __init__(self, root):
         self.root = root
-        self.root.title("CPU Scheduler Simulator")
-        self.root.geometry("1400x900")
+        self.root.title("Dynamic CPU Scheduler")
+        self.root.geometry("1200x800")
         
-        # Set theme colors
-        style = ttk.Style()
-        style.theme_use('clam')
-        
-        # Define color scheme
+        # Modern color scheme
         self.colors = {
-            'bg': '#2C3E50',
-            'fg': '#ECF0F1',
-            'accent1': '#3498DB',
-            'accent2': '#E74C3C',
-            'accent3': '#2ECC71'
+            'bg': '#1e1e1e',
+            'accent1': '#61afef',
+            'accent2': '#98c379',
+            'accent3': '#e06c75',
+            'text': '#abb2bf',
+            'header': '#c678dd'
         }
         
         self.root.configure(bg=self.colors['bg'])
-        
-        # Configure styles
-        style.configure('Custom.TFrame', background=self.colors['bg'])
-        style.configure('Custom.TLabel', background=self.colors['bg'], foreground=self.colors['fg'])
-        style.configure('Custom.TButton', 
-                       background=self.colors['accent1'], 
-                       foreground=self.colors['fg'],
-                       padding=5)
-        
-        # Create main frames
-        self.create_frames()
-        self.create_input_section()
-        self.create_process_table()
-        self.create_algorithm_section()
-        self.create_statistics_section()
-        self.create_visualization_section()
+        self.setup_styles()
+        self.create_layout()
+        self.initialize_data()
 
-        # Initialize statistics variables
-        self.current_stats = {
-            'waiting_times': [],
-            'turnaround_times': [],
-            'response_times': [],
-            'completion_times': [],
-            'idle_time': 0
-        }
-        
-        # Initialize visualization frames
-        self.gantt_canvas = None
-        self.stats_canvas = None
+    def setup_styles(self):
+        # Configure modern styles
+        style = ttk.Style()
+        style.configure('Modern.TFrame', background=self.colors['bg'])
+        style.configure('Modern.TLabel', 
+                       background=self.colors['bg'], 
+                       foreground=self.colors['text'])
+        style.configure('Header.TLabel',
+                       background=self.colors['bg'],
+                       foreground=self.colors['header'],
+                       font=('Arial', 14, 'bold'))
 
-    def create_frames(self):
-        # Main container frame
-        self.main_container = ttk.Frame(self.root, padding=10)
-        self.main_container.pack(fill=tk.BOTH, expand=True)
+    def create_layout(self):
+        # Main container with three columns
+        self.main_frame = ttk.Frame(self.root, style='Modern.TFrame')
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-        # Left frame for inputs (using width in the Frame creation instead of pack)
-        self.left_frame = ttk.Frame(self.main_container, padding=10, width=400)
-        self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
-        self.left_frame.pack_propagate(False)  # This prevents the frame from shrinking
+        # Left column - Process Input
+        self.input_frame = self.create_input_section()
+        self.input_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
 
-        # Right frame for outputs and visualizations
-        self.right_frame = ttk.Frame(self.main_container, padding=10)
-        self.right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # Middle column - Process Queue and Controls
+        self.queue_frame = self.create_queue_section()
+        self.queue_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
 
-        # Create a frame for visualizations below statistics
-        self.viz_frame = ttk.Frame(self.right_frame, padding=10)
-        self.viz_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Separate frames for Gantt chart and performance graphs
-        self.gantt_frame = ttk.LabelFrame(self.viz_frame, text="Gantt Chart", padding=10)
-        self.gantt_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-
-        self.performance_frame = ttk.LabelFrame(self.viz_frame, text="Performance Metrics", padding=10)
-        self.performance_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        # Right column - Visualization
+        self.viz_frame = self.create_visualization_section()
+        self.viz_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
 
     def create_input_section(self):
-        input_frame = ttk.LabelFrame(self.left_frame, text="Add New Process", padding=10)
-        input_frame.pack(fill=tk.X, pady=10)
+        frame = ttk.Frame(self.main_frame, style='Modern.TFrame')
+        
+        # Header
+        ttk.Label(frame, text="Process Creation", 
+                 style='Header.TLabel').pack(pady=10)
 
-        # Process ID
-        ttk.Label(input_frame, text="PID:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.pid_entry = ttk.Entry(input_frame)
-        self.pid_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        self.pid_entry.insert(0, self.generate_unique_pid())
+        # Input fields with modern styling
+        input_fields = [
+            ("Process ID", self.generate_pid),
+            ("Arrival Time", lambda: 0),
+            ("Burst Time", lambda: 1),
+            ("Priority", lambda: 0)
+        ]
 
-        # Arrival Time
-        ttk.Label(input_frame, text="Arrival Time:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.arrival_entry = ttk.Entry(input_frame)
-        self.arrival_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.entries = {}
+        for label, default_value in input_fields:
+            container = ttk.Frame(frame, style='Modern.TFrame')
+            container.pack(fill=tk.X, pady=5)
+            
+            ttk.Label(container, text=label, 
+                     style='Modern.TLabel').pack(side=tk.LEFT)
+            
+            entry = tk.Entry(container, bg=self.colors['bg'], 
+                           fg=self.colors['text'],
+                           insertbackground=self.colors['text'])
+            entry.pack(side=tk.RIGHT, expand=True)
+            entry.insert(0, str(default_value()))
+            self.entries[label] = entry
 
-        # Burst Time
-        ttk.Label(input_frame, text="Burst Time:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        self.burst_entry = ttk.Entry(input_frame)
-        self.burst_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        # Modern buttons
+        btn_frame = ttk.Frame(frame, style='Modern.TFrame')
+        btn_frame.pack(fill=tk.X, pady=20)
 
-        # Priority
-        ttk.Label(input_frame, text="Priority:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        self.priority_entry = ttk.Entry(input_frame)
-        self.priority_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
-        self.priority_entry.insert(0, "0")
+        self.create_modern_button(btn_frame, "Add Process", 
+                                self.add_process, self.colors['accent2'])
+        self.create_modern_button(btn_frame, "Clear All", 
+                                self.clear_processes, self.colors['accent3'])
 
-        # Add Process Button
-        add_button = tk.Button(input_frame, text="Add Process", command=self.add_process,
-                             bg='#4CAF50', fg='white', relief=tk.RAISED,
-                             font=('Arial', 10, 'bold'), padx=10, pady=5)
-        add_button.grid(row=4, column=0, columnspan=2, padx=5, pady=10, sticky="ew")
+        return frame
 
-    def create_process_table(self):
-        table_frame = ttk.LabelFrame(self.left_frame, text="Processes", padding=10)
-        table_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+    def create_queue_section(self):
+        frame = ttk.Frame(self.main_frame, style='Modern.TFrame')
+        
+        ttk.Label(frame, text="Process Queue", 
+                 style='Header.TLabel').pack(pady=10)
 
-        # Create Treeview
-        self.tree = ttk.Treeview(table_frame, columns=("PID", "Arrival", "Burst", "Priority"), show='headings')
-        self.tree.heading("PID", text="PID")
-        self.tree.heading("Arrival", text="Arrival Time")
-        self.tree.heading("Burst", text="Burst Time")
-        self.tree.heading("Priority", text="Priority")
-
-        self.tree.column("PID", width=50, anchor=tk.CENTER)
-        self.tree.column("Arrival", width=100, anchor=tk.CENTER)
-        self.tree.column("Burst", width=100, anchor=tk.CENTER)
-        self.tree.column("Priority", width=80, anchor=tk.CENTER)
-
-        # Add scrollbar
-        scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Delete button
-        delete_button = tk.Button(table_frame, text="Delete Selected", command=self.delete_process,
-                                bg='#f44336', fg='white', relief=tk.RAISED,
-                                font=('Arial', 10, 'bold'), padx=10, pady=5)
-        delete_button.pack(pady=5, fill=tk.X)
-
-    def create_algorithm_section(self):
-        algo_frame = ttk.LabelFrame(self.left_frame, text="Scheduling Algorithm", padding=10)
-        algo_frame.pack(fill=tk.X, pady=10)
-
-        self.algo_var = tk.StringVar(self.root)
-        algorithms = ["Select Algorithm", "FCFS", "SJF", "Round Robin", "Priority Scheduling"]
-        self.algo_var.set(algorithms[0])
+        # Process list with custom styling
+        self.queue_display = tk.Text(frame, height=10,
+                                   bg=self.colors['bg'],
+                                   fg=self.colors['text'],
+                                   relief=tk.FLAT)
+        self.queue_display.pack(fill=tk.BOTH, expand=True, pady=10)
 
         # Algorithm selection
-        ttk.Label(algo_frame, text="Select Algorithm:").pack(pady=5)
-        algo_menu = ttk.Combobox(algo_frame, textvariable=self.algo_var, values=algorithms, state="readonly")
-        algo_menu.pack(pady=5, fill=tk.X)
-        algo_menu.bind("<<ComboboxSelected>>", self.show_algorithm_options)
+        algo_frame = ttk.Frame(frame, style='Modern.TFrame')
+        algo_frame.pack(fill=tk.X, pady=10)
 
-        # Time Quantum for Round Robin
-        self.time_quantum_label = ttk.Label(algo_frame, text="Time Quantum:")
-        self.time_quantum_entry = ttk.Entry(algo_frame)
+        ttk.Label(algo_frame, text="Algorithm:", 
+                 style='Modern.TLabel').pack(side=tk.LEFT)
+
+        self.algo_var = tk.StringVar(value="FCFS")
+        algorithms = ["FCFS", "SJF", "Round Robin", "Priority"]
         
+        for algo in algorithms:
+            self.create_radio_button(algo_frame, algo)
+
+        # Time quantum input for Round Robin
+        self.quantum_frame = ttk.Frame(frame, style='Modern.TFrame')
+        ttk.Label(self.quantum_frame, text="Time Quantum:", 
+                 style='Modern.TLabel').pack(side=tk.LEFT)
+        self.quantum_entry = tk.Entry(self.quantum_frame, 
+                                    bg=self.colors['bg'],
+                                    fg=self.colors['text'])
+        self.quantum_entry.pack(side=tk.RIGHT)
+        self.quantum_entry.insert(0, "2")
+
         # Run button
-        run_button = tk.Button(algo_frame, text="Run Scheduler", command=self.run_scheduler,
-                             bg='#2196F3', fg='white', relief=tk.RAISED,
-                             font=('Arial', 10, 'bold'), padx=10, pady=5)
-        run_button.pack(pady=10, fill=tk.X)
+        self.create_modern_button(frame, "Run Simulation", 
+                                self.run_simulation, self.colors['accent1'])
 
-    def create_statistics_section(self):
-        stats_frame = ttk.LabelFrame(self.right_frame, text="Process Statistics", padding=10)
-        stats_frame.pack(fill=tk.BOTH, expand=True, pady=10)
-
-        # Create Treeview for statistics
-        self.stats_tree = ttk.Treeview(stats_frame, columns=("PID", "Wait", "Turnaround", "Response"), show='headings')
-        self.stats_tree.heading("PID", text="PID")
-        self.stats_tree.heading("Wait", text="Waiting Time")
-        self.stats_tree.heading("Turnaround", text="Turnaround Time")
-        self.stats_tree.heading("Response", text="Response Time")
-
-        self.stats_tree.column("PID", width=50, anchor=tk.CENTER)
-        self.stats_tree.column("Wait", width=100, anchor=tk.CENTER)
-        self.stats_tree.column("Turnaround", width=100, anchor=tk.CENTER)
-        self.stats_tree.column("Response", width=100, anchor=tk.CENTER)
-
-        # Add scrollbar
-        scrollbar = ttk.Scrollbar(stats_frame, orient=tk.VERTICAL, command=self.stats_tree.yview)
-        self.stats_tree.configure(yscrollcommand=scrollbar.set)
-
-        self.stats_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        return frame
 
     def create_visualization_section(self):
-        viz_frame = ttk.LabelFrame(self.right_frame, text="Visualizations", padding=10)
-        viz_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        frame = ttk.Frame(self.main_frame, style='Modern.TFrame')
+        
+        ttk.Label(frame, text="Visualization", 
+                 style='Header.TLabel').pack(pady=10)
 
-        # Frame for Gantt Chart
-        self.gantt_frame = ttk.Frame(viz_frame, style='Custom.TFrame')
-        self.gantt_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        # Gantt chart
+        self.gantt_frame = ttk.Frame(frame, style='Modern.TFrame')
+        self.gantt_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Frame for Performance Metrics
-        self.metrics_frame = ttk.Frame(viz_frame, style='Custom.TFrame')
-        self.metrics_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        # Statistics
+        self.stats_frame = ttk.Frame(frame, style='Modern.TFrame')
+        self.stats_frame.pack(fill=tk.BOTH, expand=True)
 
-    def generate_unique_pid(self):
-        if not hasattr(self, 'process_count'):
-            self.process_count = 1
-        else:
-            self.process_count += 1
-        return self.process_count
+        return frame
+
+    def create_modern_button(self, parent, text, command, color):
+        btn = tk.Button(parent, text=text, command=command,
+                       bg=color, fg='white',
+                       relief=tk.FLAT,
+                       font=('Arial', 10),
+                       padx=15, pady=5)
+        btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        return btn
+
+    def create_radio_button(self, parent, text):
+        rb = tk.Radiobutton(parent, text=text, 
+                           variable=self.algo_var,
+                           value=text,
+                           bg=self.colors['bg'],
+                           fg=self.colors['text'],
+                           selectcolor=self.colors['accent1'],
+                           command=self.on_algorithm_change)
+        rb.pack(side=tk.LEFT, padx=5)
+        return rb
+
+    def initialize_data(self):
+        self.processes = []
+        self.process_counter = 1
+
+    def generate_pid(self):
+        return self.process_counter
 
     def add_process(self):
         try:
-            pid = int(self.pid_entry.get())
-            arrival = int(self.arrival_entry.get())
-            burst = int(self.burst_entry.get())
-            priority = int(self.priority_entry.get())
-            
-            if arrival < 0 or burst <= 0 or priority < 0:
-                raise ValueError("Arrival and priority cannot be negative, burst must be positive.")
-                
-            self.tree.insert("", "end", values=(pid, arrival, burst, priority))
-            
-            # Clear entries
-            self.pid_entry.delete(0, tk.END)
-            self.arrival_entry.delete(0, tk.END)
-            self.burst_entry.delete(0, tk.END)
-            self.priority_entry.delete(0, tk.END)
-            
-            # Set next PID
-            self.pid_entry.insert(0, self.generate_unique_pid())
-            self.priority_entry.insert(0, "0")
-            
+            process = Process(
+                pid=int(self.entries["Process ID"].get()),
+                arrival=int(self.entries["Arrival Time"].get()),
+                burst=int(self.entries["Burst Time"].get()),
+                priority=int(self.entries["Priority"].get())
+            )
+            self.processes.append(process)
+            self.process_counter += 1
+            self.entries["Process ID"].delete(0, tk.END)
+            self.entries["Process ID"].insert(0, str(self.process_counter))
+            self.update_queue_display()
         except ValueError as e:
-            messagebox.showerror("Input Error", str(e))
+            messagebox.showerror("Error", "Please enter valid numbers")
 
-    def delete_process(self):
-        selected_item = self.tree.selection()
-        if not selected_item:
-            messagebox.showinfo("Info", "Please select a process to delete.")
-            return
-        self.tree.delete(selected_item)
+    def clear_processes(self):
+        self.processes = []
+        self.process_counter = 1
+        self.entries["Process ID"].delete(0, tk.END)
+        self.entries["Process ID"].insert(0, "1")
+        self.update_queue_display()
 
-    def show_algorithm_options(self, event):
-        selected_algo = self.algo_var.get()
-        if selected_algo == "Round Robin":
-            self.time_quantum_label.pack(pady=5)
-            self.time_quantum_entry.pack(pady=5, fill=tk.X)
+    def update_queue_display(self):
+        self.queue_display.delete(1.0, tk.END)
+        for p in self.processes:
+            self.queue_display.insert(tk.END, 
+                f"P{p.pid}: Arrival={p.arrival}, Burst={p.burst}, Priority={p.priority}\n")
+
+    def on_algorithm_change(self):
+        if self.algo_var.get() == "Round Robin":
+            self.quantum_frame.pack(fill=tk.X, pady=10)
         else:
-            self.time_quantum_label.pack_forget()
-            self.time_quantum_entry.pack_forget()
+            self.quantum_frame.pack_forget()
 
-    def run_scheduler(self):
-        process_data = []
-        for child in self.tree.get_children():
-            values = self.tree.item(child)['values']
-            process_data.append(Process(int(values[0]), int(values[1]), int(values[2]), int(values[3])))
-
-        if not process_data:
-            messagebox.showerror("Error", "Please add some processes first!")
+    def run_simulation(self):
+        if not self.processes:
+            messagebox.showwarning("Warning", "No processes to simulate!")
             return
 
-        selected_algo = self.algo_var.get()
-        if selected_algo == "Select Algorithm":
-            messagebox.showerror("Error", "Please select an algorithm!")
-            return
-
-        # Clear previous statistics
-        self.stats_tree.delete(*self.stats_tree.get_children())
-
+        algorithm = self.algo_var.get()
         try:
-            # Run selected algorithm
-            if selected_algo == "FCFS":
-                scheduled_processes, gantt_chart = fcfs_scheduling(process_data)
-            elif selected_algo == "SJF":
-                scheduled_processes, gantt_chart = sjf_scheduling(process_data)
-            elif selected_algo == "Round Robin":
-                try:
-                    time_quantum = int(self.time_quantum_entry.get())
-                    if time_quantum <= 0:
-                        raise ValueError("Time quantum must be positive")
-                    scheduled_processes, gantt_chart = round_robin_scheduling(process_data, time_quantum)
-                except ValueError as e:
-                    messagebox.showerror("Error", str(e))
-                    return
-            elif selected_algo == "Priority Scheduling":
-                scheduled_processes, gantt_chart = priority_scheduling(process_data)
+            if algorithm == "FCFS":
+                result = fcfs_scheduling(self.processes)
+            elif algorithm == "SJF":
+                result = sjf_scheduling(self.processes)
+            elif algorithm == "Round Robin":
+                quantum = int(self.quantum_entry.get())
+                result = round_robin_scheduling(self.processes, quantum)
+            else:  # Priority
+                result = priority_scheduling(self.processes)
 
-            # Update displays
-            self.calculate_statistics(scheduled_processes, gantt_chart)
-            self.update_statistics_table(scheduled_processes)
-            self.show_gantt_chart(gantt_chart, selected_algo)
-            self.show_performance_graphs()
-
+            self.show_results(result)
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
-    def calculate_statistics(self, processes, gantt_chart):
-        self.current_stats = {
-            'waiting_times': [],
-            'turnaround_times': [],
-            'response_times': [],
-            'completion_times': [],
-            'idle_time': 0
-        }
-
-        for process in processes:
-            self.current_stats['waiting_times'].append(process.waiting_time)
-            self.current_stats['turnaround_times'].append(process.turnaround_time)
-            self.current_stats['completion_times'].append(process.completion_time)
-
-            # Calculate response time
-            first_execution = next((g for g in gantt_chart if g[0] == process.pid), None)
-            if first_execution:
-                response_time = first_execution[1] - process.arrival
-                self.current_stats['response_times'].append(response_time)
-            else:
-                self.current_stats['response_times'].append(0)
-
-    def update_statistics_table(self, processes):
-        self.stats_tree.delete(*self.stats_tree.get_children())
-        for i, p in enumerate(processes):
-            self.stats_tree.insert("", "end", values=(
-                p.pid,
-                p.waiting_time,
-                p.turnaround_time,
-                self.current_stats['response_times'][i]
-            ))
-
-    def show_gantt_chart(self, gantt_chart, algorithm_name):
-        # Clear previous chart if it exists
+    def show_results(self, result):
+        # Clear previous visualizations
         for widget in self.gantt_frame.winfo_children():
             widget.destroy()
-
-        fig = Figure(figsize=(10, 2))
-        ax = fig.add_subplot(111)
-
-        # Create color map for processes
-        unique_pids = len(set(g[0] for g in gantt_chart))
-        colors = plt.cm.get_cmap('Set3')(np.linspace(0, 1, unique_pids))
-
-        for i, (pid, start, end) in enumerate(gantt_chart):
-            ax.barh(y=0, width=end-start, left=start, height=0.3,
-                   color=colors[pid-1], alpha=0.75)
-            ax.text((start + end)/2, 0, f'P{pid}',
-                   ha='center', va='center')
-
-        ax.set_xlabel('Time')
-        ax.set_yticks([])
-        ax.set_title(f'{algorithm_name} - Gantt Chart')
-        ax.grid(True)
-
-        canvas = FigureCanvasTkAgg(fig, master=self.gantt_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-    def show_performance_graphs(self):
-        # Clear previous graphs if they exist
-        for widget in self.performance_frame.winfo_children():
+        for widget in self.stats_frame.winfo_children():
             widget.destroy()
 
-        fig = Figure(figsize=(10, 3))
-        
-        # Create one row with three columns for the metrics
-        gs = fig.add_gridspec(1, 3, hspace=0.3)
-        
-        metrics = [
-            ('Average Waiting Time', 'waiting_times', '#2196F3'),
-            ('Average Turnaround Time', 'turnaround_times', '#4CAF50'),
-            ('Average Response Time', 'response_times', '#f44336')
-        ]
-        
-        for idx, (title, metric, color) in enumerate(metrics):
-            ax = fig.add_subplot(gs[0, idx])
-            avg_value = sum(self.current_stats[metric])/len(self.current_stats[metric])
-            
-            bar = ax.bar([title], [avg_value], color=color)
-            ax.set_title(title, fontsize=8, pad=10)
-            ax.grid(True, alpha=0.3)
-            
-            # Add value label on top of bar
-            ax.text(0, avg_value, f'{avg_value:.2f}',
-                    ha='center', va='bottom')
-            
-            # Rotate x-axis labels for better readability
-            ax.tick_params(axis='x', rotation=15)
+        processes, gantt_data = result
+        self.plot_gantt_chart(gantt_data)
+        self.show_statistics(processes)
 
-        fig.tight_layout()
-        
-        canvas = FigureCanvasTkAgg(fig, master=self.performance_frame)
+    def plot_gantt_chart(self, gantt_data):
+        fig = Figure(figsize=(8, 3), facecolor=self.colors['bg'])
+        ax = fig.add_subplot(111)
+        ax.set_facecolor(self.colors['bg'])
+
+        for pid, start, end in gantt_data:
+            ax.barh(y=0, width=end-start, left=start, 
+                   color=self.colors['accent1'], alpha=0.7)
+            ax.text((start + end)/2, 0, f'P{pid}',
+                   ha='center', va='center', color='white')
+
+        ax.set_yticks([])
+        ax.set_xlabel('Time', color=self.colors['text'])
+        ax.tick_params(colors=self.colors['text'])
+
+        canvas = FigureCanvasTkAgg(fig, self.gantt_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def show_statistics(self, processes):
+        stats = self.calculate_statistics(processes)
+        
+        fig = Figure(figsize=(8, 3), facecolor=self.colors['bg'])
+        ax = fig.add_subplot(111)
+        ax.set_facecolor(self.colors['bg'])
+
+        metrics = list(stats.items())
+        x = range(len(metrics))
+        ax.bar(x, [v for k, v in metrics], 
+               color=[self.colors['accent1'], self.colors['accent2'], 
+                     self.colors['accent3']])
+
+        ax.set_xticks(x)
+        ax.set_xticklabels([k for k, v in metrics], rotation=45)
+        ax.tick_params(colors=self.colors['text'])
+
+        canvas = FigureCanvasTkAgg(fig, self.stats_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def calculate_statistics(self, processes):
+        return {
+            'Avg Waiting Time': sum(p.waiting_time for p in processes) / len(processes),
+            'Avg Turnaround Time': sum(p.turnaround_time for p in processes) / len(processes),
+            'Avg Response Time': sum(p.response_time for p in processes) / len(processes)
+        }
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = CPUSchedulerGUI(root)
+    app = ModernCPUScheduler(root)
     root.mainloop()  
