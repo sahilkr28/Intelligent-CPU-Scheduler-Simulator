@@ -117,7 +117,10 @@ class ModernCPUScheduler:
         ttk.Label(algo_frame, text="Algorithm:", 
                  style='Modern.TLabel').pack(side=tk.LEFT)
 
-        self.algo_var = tk.StringVar(value="FCFS")
+        # Initialize algo_var if it hasn't been initialized yet
+        if self.algo_var is None:
+            self.algo_var = tk.StringVar(value="FCFS")
+        
         algorithms = ["FCFS", "SJF", "Round Robin", "Priority"]
         
         for algo in algorithms:
@@ -178,6 +181,7 @@ class ModernCPUScheduler:
     def initialize_data(self):
         self.processes = []
         self.process_counter = 1
+        self.algo_var = None  # Initialize this here too
 
     def generate_pid(self):
         return self.process_counter
