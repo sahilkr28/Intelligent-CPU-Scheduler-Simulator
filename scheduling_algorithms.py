@@ -1,15 +1,30 @@
+import numpy as np
+from dataclasses import dataclass
+from typing import List, Tuple, Optional
+
+@dataclass
 class Process:
-    def __init__(self, pid, arrival, burst, priority=0):
-        self.pid = pid
-        self.arrival = arrival
-        self.burst = burst
-        self.priority = priority
-        self.waiting_time = 0
-        self.turnaround_time = 0
-        self.completion_time = 0
+    pid: int
+    arrival: int
+    burst: int
+    priority: int = 0
+    remaining_burst: Optional[int] = None
+    completion_time: int = 0
+    turnaround_time: int = 0
+    waiting_time: int = 0
+    response_time: int = -1
+
+    def __post_init__(self):
+        self.remaining_burst = self.burst
 
     def __repr__(self):
         return f"P{self.pid}(A:{self.arrival}, B:{self.burst}, P:{self.priority})"
+
+def calculate_metrics(processes: List[Process]):
+    avg_turnaround = np.mean([p.turnaround_time for p in processes])
+    avg_waiting = np.mean([p.waiting_time for p in processes])
+    avg_response = np.mean([p.response_time for p in processes])
+    return avg_turnaround, avg_waiting, avg_response
 
 def fcfs_scheduling(processes):
     """First Come First Serve scheduling algorithm"""

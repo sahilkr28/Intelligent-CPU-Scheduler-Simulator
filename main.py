@@ -10,7 +10,10 @@ class ModernCPUScheduler:
     def __init__(self, root):
         self.root = root
         self.root.title("Dynamic CPU Scheduler")
-        self.root.geometry("1200x800")
+        self.root.geometry("1400x900")
+        
+        # Initialize data first
+        self.initialize_data()
         
         # Modern color scheme
         self.colors = {
@@ -25,7 +28,6 @@ class ModernCPUScheduler:
         self.root.configure(bg=self.colors['bg'])
         self.setup_styles()
         self.create_layout()
-        self.initialize_data()
 
     def setup_styles(self):
         # Configure modern styles
@@ -40,24 +42,29 @@ class ModernCPUScheduler:
                        font=('Arial', 14, 'bold'))
 
     def create_layout(self):
-        # Main container with three columns
+        # Main container
         self.main_frame = ttk.Frame(self.root, style='Modern.TFrame')
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-        # Left column - Process Input
-        self.input_frame = self.create_input_section()
-        self.input_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
-
-        # Middle column - Process Queue and Controls
-        self.queue_frame = self.create_queue_section()
-        self.queue_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
-
-        # Right column - Visualization
-        self.viz_frame = self.create_visualization_section()
-        self.viz_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+        # Left panel - Process Input and Ready Queue
+        self.left_panel = ttk.Frame(self.main_frame, style='Modern.TFrame')
+        self.left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+        
+        # Create input section
+        self.create_input_section()
+        
+        # Create ready queue table
+        self.create_ready_queue_table()
+        
+        # Right panel - Results and Visualization
+        self.right_panel = ttk.Frame(self.main_frame, style='Modern.TFrame')
+        self.right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
+        
+        # Create results section
+        self.create_results_section()
 
     def create_input_section(self):
-        frame = ttk.Frame(self.main_frame, style='Modern.TFrame')
+        frame = ttk.Frame(self.left_panel, style='Modern.TFrame')
         
         # Header
         ttk.Label(frame, text="Process Creation", 
@@ -97,66 +104,90 @@ class ModernCPUScheduler:
 
         return frame
 
-    def create_queue_section(self):
-        frame = ttk.Frame(self.main_frame, style='Modern.TFrame')
+    def create_ready_queue_table(self):
+        # Ready Queue Table
+        queue_frame = ttk.LabelFrame(self.left_panel, text="Ready Queue", padding=10)
+        queue_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+
+        # Create Treeview for ready queue
+        self.ready_queue = ttk.Treeview(queue_frame, 
+            columns=("PID", "Arrival", "Burst", "Priority", "Status"),
+            show='headings', height=8)
         
-        ttk.Label(frame, text="Process Queue", 
-                 style='Header.TLabel').pack(pady=10)
-
-        # Process list with custom styling
-        self.queue_display = tk.Text(frame, height=10,
-                                   bg=self.colors['bg'],
-                                   fg=self.colors['text'],
-                                   relief=tk.FLAT)
-        self.queue_display.pack(fill=tk.BOTH, expand=True, pady=10)
-
-        # Algorithm selection
-        algo_frame = ttk.Frame(frame, style='Modern.TFrame')
-        algo_frame.pack(fill=tk.X, pady=10)
-
-        ttk.Label(algo_frame, text="Algorithm:", 
-                 style='Modern.TLabel').pack(side=tk.LEFT)
-
-        # Initialize algo_var if it hasn't been initialized yet
-        if self.algo_var is None:
-            self.algo_var = tk.StringVar(value="FCFS")
+        # Configure columns
+        columns = [
+            ("PID", "PID", 50),
+            ("Arrival", "Arrival Time", 80),
+            ("Burst", "Burst Time", 80),
+            ("Priority", "Priority", 60),
+            ("Status", "Status", 100)
+        ]
         
-        algorithms = ["FCFS", "SJF", "Round Robin", "Priority"]
+        for col, heading, width in columns:
+            self.ready_queue.heading(col, text=heading)
+            self.ready_queue.column(col, width=width, anchor=tk.CENTER)
+
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(queue_frame, orient=tk.VERTICAL, 
+                                command=self.ready_queue.yview)
+        self.ready_queue.configure(yscrollcommand=scrollbar.set)
         
-        for algo in algorithms:
-            self.create_radio_button(algo_frame, algo)
+        self.ready_queue.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Time quantum input for Round Robin
-        self.quantum_frame = ttk.Frame(frame, style='Modern.TFrame')
-        ttk.Label(self.quantum_frame, text="Time Quantum:", 
-                 style='Modern.TLabel').pack(side=tk.LEFT)
-        self.quantum_entry = tk.Entry(self.quantum_frame, 
-                                    bg=self.colors['bg'],
-                                    fg=self.colors['text'])
-        self.quantum_entry.pack(side=tk.RIGHT)
-        self.quantum_entry.insert(0, "2")
+    def create_results_section(self):
+        # Results Table
+        results_frame = ttk.LabelFrame(self.right_panel, text="Process Results", padding=10)
+        results_frame.pack(fill=tk.BOTH, expand=True, pady=10)
 
-        # Run button
-        self.create_modern_button(frame, "Run Simulation", 
-                                self.run_simulation, self.colors['accent1'])
-
-        return frame
-
-    def create_visualization_section(self):
-        frame = ttk.Frame(self.main_frame, style='Modern.TFrame')
+        # Create Treeview for results
+        self.results_tree = ttk.Treeview(results_frame, 
+            columns=("PID", "CT", "TAT", "WT", "RT"),
+            show='headings', height=8)
         
-        ttk.Label(frame, text="Visualization", 
-                 style='Header.TLabel').pack(pady=10)
+        # Configure columns
+        columns = [
+            ("PID", "Process ID", 70),
+            ("CT", "Completion Time", 100),
+            ("TAT", "Turnaround Time", 100),
+            ("WT", "Waiting Time", 100),
+            ("RT", "Response Time", 100)
+        ]
+        
+        for col, heading, width in columns:
+            self.results_tree.heading(col, text=heading)
+            self.results_tree.column(col, width=width, anchor=tk.CENTER)
 
-        # Gantt chart
-        self.gantt_frame = ttk.Frame(frame, style='Modern.TFrame')
-        self.gantt_frame.pack(fill=tk.BOTH, expand=True)
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(results_frame, orient=tk.VERTICAL, 
+                                command=self.results_tree.yview)
+        self.results_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.results_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Statistics
-        self.stats_frame = ttk.Frame(frame, style='Modern.TFrame')
-        self.stats_frame.pack(fill=tk.BOTH, expand=True)
+        # Metrics Frame
+        metrics_frame = ttk.LabelFrame(self.right_panel, text="Performance Metrics", padding=10)
+        metrics_frame.pack(fill=tk.X, pady=10)
 
-        return frame
+        # Create labels for metrics
+        self.metrics_labels = {}
+        metrics = [
+            "Average Waiting Time",
+            "Average Turnaround Time",
+            "Average Response Time",
+            "Context Switches",
+            "CPU Idle Time"
+        ]
+
+        for i, metric in enumerate(metrics):
+            label = ttk.Label(metrics_frame, text=f"{metric}:", style='Modern.TLabel')
+            label.grid(row=i//2, column=(i%2)*2, padx=5, pady=5, sticky='e')
+            
+            value_label = ttk.Label(metrics_frame, text="0.00", style='Modern.TLabel')
+            value_label.grid(row=i//2, column=(i%2)*2+1, padx=5, pady=5, sticky='w')
+            
+            self.metrics_labels[metric] = value_label
 
     def create_modern_button(self, parent, text, command, color):
         btn = tk.Button(parent, text=text, command=command,
@@ -166,17 +197,6 @@ class ModernCPUScheduler:
                        padx=15, pady=5)
         btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
         return btn
-
-    def create_radio_button(self, parent, text):
-        rb = tk.Radiobutton(parent, text=text, 
-                           variable=self.algo_var,
-                           value=text,
-                           bg=self.colors['bg'],
-                           fg=self.colors['text'],
-                           selectcolor=self.colors['accent1'],
-                           command=self.on_algorithm_change)
-        rb.pack(side=tk.LEFT, padx=5)
-        return rb
 
     def initialize_data(self):
         self.processes = []
@@ -198,7 +218,7 @@ class ModernCPUScheduler:
             self.process_counter += 1
             self.entries["Process ID"].delete(0, tk.END)
             self.entries["Process ID"].insert(0, str(self.process_counter))
-            self.update_queue_display()
+            self.update_ready_queue(process)
         except ValueError as e:
             messagebox.showerror("Error", "Please enter valid numbers")
 
@@ -207,23 +227,51 @@ class ModernCPUScheduler:
         self.process_counter = 1
         self.entries["Process ID"].delete(0, tk.END)
         self.entries["Process ID"].insert(0, "1")
-        self.update_queue_display()
+        self.update_ready_queue(None)
 
-    def update_queue_display(self):
-        self.queue_display.delete(1.0, tk.END)
-        for p in self.processes:
-            self.queue_display.insert(tk.END, 
-                f"P{p.pid}: Arrival={p.arrival}, Burst={p.burst}, Priority={p.priority}\n")
+    def update_ready_queue(self, process):
+        self.ready_queue.delete(*self.ready_queue.get_children())
+        if process:
+            self.ready_queue.insert("", "end", values=(
+                process.pid,
+                process.arrival,
+                process.burst,
+                process.priority,
+                "Waiting"
+            ))
 
-    def on_algorithm_change(self):
-        if self.algo_var.get() == "Round Robin":
-            self.quantum_frame.pack(fill=tk.X, pady=10)
-        else:
-            self.quantum_frame.pack_forget()
+    def update_results(self, processes, context_switches, idle_time):
+        # Clear previous results
+        for item in self.results_tree.get_children():
+            self.results_tree.delete(item)
+
+        # Update results table
+        for process in processes:
+            self.results_tree.insert("", "end", values=(
+                process.pid,
+                process.completion_time,
+                process.turnaround_time,
+                process.waiting_time,
+                process.response_time
+            ))
+
+        # Calculate and update metrics
+        avg_turnaround, avg_waiting, avg_response = calculate_metrics(processes)
+        
+        self.metrics_labels["Average Waiting Time"].configure(
+            text=f"{avg_waiting:.2f}")
+        self.metrics_labels["Average Turnaround Time"].configure(
+            text=f"{avg_turnaround:.2f}")
+        self.metrics_labels["Average Response Time"].configure(
+            text=f"{avg_response:.2f}")
+        self.metrics_labels["Context Switches"].configure(
+            text=str(context_switches))
+        self.metrics_labels["CPU Idle Time"].configure(
+            text=f"{idle_time:.2f}")
 
     def run_simulation(self):
         if not self.processes:
-            messagebox.showwarning("Warning", "No processes to simulate!")
+            messagebox.showerror("Error", "Please add some processes first!")
             return
 
         algorithm = self.algo_var.get()
@@ -238,22 +286,20 @@ class ModernCPUScheduler:
             else:  # Priority
                 result = priority_scheduling(self.processes)
 
-            self.show_results(result)
+            processes, gantt_data, context_switches = result
+            
+            # Calculate idle time
+            total_time = max(p.completion_time for p in processes)
+            busy_time = sum(end - start for _, start, end in gantt_data)
+            idle_time = total_time - busy_time
+
+            self.update_results(processes, context_switches, idle_time)
+            self.show_gantt_chart(gantt_data)
+
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
-    def show_results(self, result):
-        # Clear previous visualizations
-        for widget in self.gantt_frame.winfo_children():
-            widget.destroy()
-        for widget in self.stats_frame.winfo_children():
-            widget.destroy()
-
-        processes, gantt_data = result
-        self.plot_gantt_chart(gantt_data)
-        self.show_statistics(processes)
-
-    def plot_gantt_chart(self, gantt_data):
+    def show_gantt_chart(self, gantt_data):
         fig = Figure(figsize=(8, 3), facecolor=self.colors['bg'])
         ax = fig.add_subplot(111)
         ax.set_facecolor(self.colors['bg'])
@@ -271,34 +317,6 @@ class ModernCPUScheduler:
         canvas = FigureCanvasTkAgg(fig, self.gantt_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-    def show_statistics(self, processes):
-        stats = self.calculate_statistics(processes)
-        
-        fig = Figure(figsize=(8, 3), facecolor=self.colors['bg'])
-        ax = fig.add_subplot(111)
-        ax.set_facecolor(self.colors['bg'])
-
-        metrics = list(stats.items())
-        x = range(len(metrics))
-        ax.bar(x, [v for k, v in metrics], 
-               color=[self.colors['accent1'], self.colors['accent2'], 
-                     self.colors['accent3']])
-
-        ax.set_xticks(x)
-        ax.set_xticklabels([k for k, v in metrics], rotation=45)
-        ax.tick_params(colors=self.colors['text'])
-
-        canvas = FigureCanvasTkAgg(fig, self.stats_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-    def calculate_statistics(self, processes):
-        return {
-            'Avg Waiting Time': sum(p.waiting_time for p in processes) / len(processes),
-            'Avg Turnaround Time': sum(p.turnaround_time for p in processes) / len(processes),
-            'Avg Response Time': sum(p.response_time for p in processes) / len(processes)
-        }
 
 if __name__ == "__main__":
     root = tk.Tk()
