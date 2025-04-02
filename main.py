@@ -245,10 +245,19 @@ with left_col:
         burst = st.number_input("Burst Time", min_value=1, value=1)
         priority = st.number_input("Priority", min_value=0, value=0)
 
-    if st.button("Add Process", use_container_width=True):
-        new_process = Process(pid, arrival, burst, priority)
-        st.session_state.processes.append(new_process)
-        st.success(f"✅ Process {pid} added successfully!")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Add Process", use_container_width=True):
+            new_process = Process(pid, arrival, burst, priority)
+            st.session_state.processes.append(new_process)
+            st.success(f"✅ Process {pid} added successfully!")
+    
+    with col2:
+        if st.session_state.processes:
+            delete_pid = st.selectbox("Select Process to Delete", [p.pid for p in st.session_state.processes])
+            if st.button(f"Delete (P{delete_pid})", use_container_width=True):
+                st.session_state.processes = [p for p in st.session_state.processes if p.pid != delete_pid]
+                st.rerun()
 
     st.subheader("⚙️ Algorithm Selection")
     algorithm = st.selectbox(
@@ -266,11 +275,6 @@ with left_col:
         if st.button("Clear All Processes", use_container_width=True):
             st.session_state.processes = []
             st.rerun()
-        
-        delete_pid = st.selectbox("Select Process to Delete", [p.pid for p in st.session_state.processes])
-        if st.button("Delete Selected Process", use_container_width=True):
-            st.session_state.processes = [p for p in st.session_state.processes if p.pid != delete_pid]
-            st.rerun()
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -279,7 +283,7 @@ with right_col:
     st.markdown('<div class="output-section">', unsafe_allow_html=True)
     
     if st.session_state.processes:
-        st.subheader("📊 Process Table")
+        st.subheader(" Process Table")
         process_df = pd.DataFrame(sorted([
             {
                 "PID": p.pid,
@@ -290,7 +294,7 @@ with right_col:
         ], key=lambda x: x["PID"], reverse=False))
         st.dataframe(process_df, use_container_width=True)
 
-        if st.button("▶️ Run Simulation", use_container_width=True):
+        if st.button(" Run Simulation", use_container_width=True):
             # Run selected algorithm
             if algorithm == "FCFS":
                 processes, gantt_data, switches = fcfs_scheduling(st.session_state.processes)
@@ -307,7 +311,7 @@ with right_col:
             avg_turnaround, avg_waiting, avg_response = calculate_metrics(processes)
             processes.sort(key=lambda p: p.pid)
 
-            st.subheader("📈 Gantt Chart")
+            st.subheader(" Gantt Chart")
             fig = go.Figure()
 
             for p_id, start, end in gantt_data:
@@ -352,7 +356,7 @@ with right_col:
 
             st.plotly_chart(fig, use_container_width=True)
 
-            st.subheader("📊 Performance Metrics")
+            st.subheader(" Performance Metrics")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Avg Turnaround", f"{avg_turnaround:.2f}")
@@ -363,7 +367,7 @@ with right_col:
             with col4:
                 st.metric("Context Switches", switches)
 
-            st.subheader("📋 Process Details")
+            st.subheader(" Process Details")
             details_df = pd.DataFrame([
                 {
                     "PID": p.pid,
