@@ -33,6 +33,8 @@ class DarkCPUScheduler:
         self.processes = []
         self.process_counter = 1
         self.algo_var = None
+        self.quantum_frame = None
+        self.quantum_entry = None
 
     def setup_styles(self):
         style = ttk.Style()
@@ -137,6 +139,7 @@ class DarkCPUScheduler:
                                     fg=self.colors['text'])
         self.quantum_entry.pack(side=tk.RIGHT)
         self.quantum_entry.insert(0, "2")
+        self.quantum_frame.pack_forget()  # Hide initially
 
         # Run Button
         tk.Button(queue_frame, text="Run Simulation",
@@ -146,106 +149,32 @@ class DarkCPUScheduler:
 
     def create_right_panel(self):
         panel = ttk.Frame(self.main_frame, style='Dark.TFrame')
-
-        # Results Section
-        self.create_results_section(panel)
         
-        # Visualization Section
-        self.create_visualization_section(panel)
+        # Results header
+        ttk.Label(panel, text="Simulation Results", 
+                 style='Header.TLabel').pack(pady=10)
+
+        # Create frames for visualizations
+        self.gantt_frame = ttk.LabelFrame(panel, text="Gantt Chart",
+                                        style='Dark.TFrame', padding=10)
+        self.gantt_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        self.metrics_frame = ttk.LabelFrame(panel, text="Performance Metrics",
+                                          style='Dark.TFrame', padding=10)
+        self.metrics_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
         return panel
 
-    def create_results_section(self):
-        # Implementation of results display using Plotly
-        pass
-
-    def show_gantt_chart(self, gantt_data):
-        fig = go.Figure()
-
-        for p_id, start, end in gantt_data:
-            fig.add_trace(go.Bar(
-                x=[end - start],
-                y=[f"P{p_id}"],
-                orientation='h',
-                base=[start],
-                marker_color=px.colors.qualitative.Set3[p_id % len(px.colors.qualitative.Set3)],
-                name=f"P{p_id}",
-                text=f"P{p_id} ({start}-{end})",
-                textposition="inside",
-                hoverinfo="text",
-                showlegend=False
-            ))
-
-        fig.update_layout(
-            plot_bgcolor=self.colors['bg'],
-            paper_bgcolor=self.colors['bg'],
-            font_color=self.colors['text'],
-            barmode='overlay',
-            xaxis=dict(
-                title="Time",
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=self.colors['grid'],
-                zeroline=True,
-                zerolinewidth=2,
-                zerolinecolor=self.colors['accent1']
-            ),
-            yaxis=dict(
-                title="Process",
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=self.colors['grid']
-            ),
-            margin=dict(l=50, r=50, t=30, b=30)
-        )
-
-        # Convert to widget and display
-        # Note: You'll need to implement a method to display Plotly figures in tkinter
-
-    def show_metrics(self, processes):
-        # Create metrics visualization using Plotly
-        metrics_fig = go.Figure()
-
-        # Add Response Time bars
-        metrics_fig.add_trace(go.Bar(
-            name='Response Time',
-            x=[f'P{p.pid}' for p in processes],
-            y=[p.response_time for p in processes],
-            marker_color='#99FF99',
-            width=0.2
-        ))
-
-        # Add Turnaround Time bars
-        metrics_fig.add_trace(go.Bar(
-            name='Turnaround Time',
-            x=[f'P{p.pid}' for p in processes],
-            y=[p.turnaround_time for p in processes],
-            marker_color='#FFB366',
-            width=0.2
-        ))
-
-        metrics_fig.update_layout(
-            plot_bgcolor=self.colors['bg'],
-            paper_bgcolor=self.colors['bg'],
-            font_color=self.colors['text'],
-            barmode='group',
-            bargap=0.3,
-            bargroupgap=0.1,
-            xaxis_title="Process ID",
-            yaxis_title="Time",
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
-        )
-
-        # Convert to widget and display
+    def on_algorithm_change(self):
+        """Handle algorithm selection changes"""
+        selected_algo = self.algo_var.get()
+        if selected_algo == "Round Robin":
+            self.quantum_frame.pack(fill=tk.X, pady=5)
+        else:
+            self.quantum_frame.pack_forget()
 
     def add_process(self):
+        """Add a new process to the queue"""
         try:
             process = Process(
                 pid=int(self.entries["PID"].get()),
@@ -257,65 +186,137 @@ class DarkCPUScheduler:
             self.process_counter += 1
             self.entries["PID"].delete(0, tk.END)
             self.entries["PID"].insert(0, str(self.process_counter))
-            self.update_ready_queue(process)
-        except ValueError as e:
+            self.update_queue_display()
+        except ValueError:
             messagebox.showerror("Error", "Please enter valid numbers")
 
-    def update_ready_queue(self, process):
+    def update_queue_display(self):
+        """Update the process queue display"""
         self.queue_text.delete(1.0, tk.END)
-        if process:
-            self.queue_text.insert(tk.END, f"PID: {process.pid}\nArrival Time: {process.arrival}\nBurst Time: {process.burst}\nPriority: {process.priority}")
+        for p in self.processes:
+            self.queue_text.insert(tk.END, 
+                f"P{p.pid}: Arrival={p.arrival}, Burst={p.burst}, Priority={p.priority}\n")
 
     def run_simulation(self):
+        """Run the selected scheduling algorithm"""
         if not self.processes:
             messagebox.showerror("Error", "Please add some processes first!")
             return
 
         algorithm = self.algo_var.get()
         try:
-            if algorithm == "FCFS":
-                result = fcfs_scheduling(self.processes)
-            elif algorithm == "SJF":
-                result = sjf_scheduling(self.processes)
-            elif algorithm == "Round Robin":
-                quantum = int(self.quantum_entry.get())
-                result = round_robin_scheduling(self.processes, quantum)
-            else:  # Priority
-                result = priority_scheduling(self.processes)
-
-            processes, gantt_data, context_switches = result
+            processes_copy = [Process(p.pid, p.arrival, p.burst, p.priority) for p in self.processes]
             
-            self.update_results(processes, context_switches)
-            self.show_gantt_chart(gantt_data)
+            if algorithm == "FCFS":
+                processes, gantt_data, switches = fcfs_scheduling(processes_copy)
+            elif algorithm == "SJF (Non-preemptive)":
+                processes, gantt_data, switches = sjf_scheduling(processes_copy, preemptive=False)
+            elif algorithm == "SRTF (Preemptive)":
+                processes, gantt_data, switches = sjf_scheduling(processes_copy, preemptive=True)
+            elif algorithm == "Round Robin":
+                try:
+                    quantum = int(self.quantum_entry.get())
+                    if quantum <= 0:
+                        raise ValueError("Time quantum must be positive")
+                    processes, gantt_data, switches = round_robin_scheduling(processes_copy, quantum)
+                except ValueError as e:
+                    messagebox.showerror("Error", str(e))
+                    return
+            else:  # Priority
+                processes, gantt_data, switches = priority_scheduling(processes_copy)
 
+            self.show_results(processes, gantt_data, switches)
+        except ValueError as e:
+            messagebox.showerror("Error", f"Simulation error: {str(e)}")
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
 
-    def update_results(self, processes, context_switches):
+    def show_results(self, processes, gantt_data, switches):
+        """Display simulation results"""
         # Clear previous results
-        self.results_tree.delete(*self.results_tree.get_children())
+        for widget in self.gantt_frame.winfo_children():
+            widget.destroy()
+        for widget in self.metrics_frame.winfo_children():
+            widget.destroy()
 
-        # Update results table
-        for process in processes:
-            self.results_tree.insert("", "end", values=(
-                process.pid,
-                process.completion_time,
-                process.turnaround_time,
-                process.waiting_time,
-                process.response_time
-            ))
+        # Calculate metrics
+        avg_turnaround = sum(p.turnaround_time for p in processes) / len(processes)
+        avg_waiting = sum(p.waiting_time for p in processes) / len(processes)
+        avg_response = sum(p.response_time for p in processes) / len(processes)
 
-        # Calculate and update metrics
-        avg_turnaround, avg_waiting, avg_response = calculate_metrics(processes)
+        # Create metrics display
+        metrics_text = (
+            f"Average Turnaround Time: {avg_turnaround:.2f}\n"
+            f"Average Waiting Time: {avg_waiting:.2f}\n"
+            f"Average Response Time: {avg_response:.2f}\n"
+            f"Context Switches: {switches}"
+        )
         
-        self.metrics_labels["Average Waiting Time"].configure(
-            text=f"{avg_waiting:.2f}")
-        self.metrics_labels["Average Turnaround Time"].configure(
-            text=f"{avg_turnaround:.2f}")
-        self.metrics_labels["Average Response Time"].configure(
-            text=f"{avg_response:.2f}")
-        self.metrics_labels["Context Switches"].configure(
-            text=str(context_switches))
+        metrics_label = ttk.Label(self.metrics_frame, 
+                                text=metrics_text,
+                                style='Dark.TLabel')
+        metrics_label.pack(pady=10)
+
+        # Create results table
+        results_frame = ttk.Frame(self.metrics_frame, style='Dark.TFrame')
+        results_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+
+        # Headers
+        headers = ["PID", "Arrival", "Burst", "Completion", "Turnaround", "Waiting", "Response"]
+        for col, header in enumerate(headers):
+            ttk.Label(results_frame, text=header,
+                     style='Dark.TLabel').grid(row=0, column=col, padx=5, pady=5)
+
+        # Process data
+        for row, p in enumerate(processes, start=1):
+            data = [p.pid, p.arrival, p.burst, p.completion_time,
+                    p.turnaround_time, p.waiting_time, p.response_time]
+            for col, value in enumerate(data):
+                ttk.Label(results_frame, text=str(value),
+                         style='Dark.TLabel').grid(row=row, column=col, padx=5, pady=2)
+
+        # Create Gantt chart
+        self.create_gantt_chart(gantt_data)
+
+    def create_gantt_chart(self, gantt_data):
+        """Create a simple Gantt chart using tkinter canvas"""
+        canvas_height = 100
+        canvas_width = 600
+        time_scale = canvas_width / (max(end for _, _, end in gantt_data) + 1)
+        
+        canvas = tk.Canvas(self.gantt_frame, 
+                          height=canvas_height,
+                          width=canvas_width,
+                          bg=self.colors['card'])
+        canvas.pack(pady=10)
+
+        # Draw time axis
+        canvas.create_line(0, canvas_height-20, canvas_width, canvas_height-20,
+                          fill=self.colors['text'])
+
+        # Draw process blocks
+        y_top = 20
+        y_bottom = canvas_height - 40
+        for pid, start, end in gantt_data:
+            x1 = start * time_scale
+            x2 = end * time_scale
+            
+            # Process block
+            canvas.create_rectangle(x1, y_top, x2, y_bottom,
+                                  fill=self.colors['accent1'])
+            
+            # Process label
+            canvas.create_text((x1 + x2) / 2, (y_top + y_bottom) / 2,
+                              text=f"P{pid}",
+                              fill=self.colors['text'])
+            
+            # Time labels
+            canvas.create_text(x1, canvas_height-10,
+                              text=str(start),
+                              fill=self.colors['text'])
+            canvas.create_text(x2, canvas_height-10,
+                              text=str(end),
+                              fill=self.colors['text'])
 
 if __name__ == "__main__":
     root = tk.Tk()

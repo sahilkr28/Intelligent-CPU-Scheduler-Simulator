@@ -30,21 +30,24 @@ def fcfs_scheduling(processes):
     """First Come First Serve scheduling algorithm"""
     processes = sorted(processes, key=lambda x: x.arrival)
     current_time = 0
-    gantt_chart = []
-    scheduled_processes = []
+    gantt_data = []
+    context_switches = 0
 
     for process in processes:
-        p = Process(process.pid, process.arrival, process.burst, process.priority)
-        if current_time < p.arrival:
-            current_time = p.arrival
-        p.waiting_time = current_time - p.arrival
-        p.completion_time = current_time + p.burst
-        p.turnaround_time = p.completion_time - p.arrival
-        gantt_chart.append((p.pid, current_time, p.completion_time))
-        current_time = p.completion_time
-        scheduled_processes.append(p)
+        if current_time < process.arrival:
+            current_time = process.arrival
 
-    return scheduled_processes, gantt_chart
+        if process.response_time == -1:
+            process.response_time = current_time - process.arrival
+
+        process.waiting_time = current_time - process.arrival
+        process.completion_time = current_time + process.burst
+        process.turnaround_time = process.completion_time - process.arrival
+        gantt_data.append((process.pid, current_time, process.completion_time))
+        current_time = process.completion_time
+        context_switches += 1
+
+    return processes, gantt_data, context_switches - 1
 
 def sjf_scheduling(processes):
     """Shortest Job First scheduling algorithm"""
