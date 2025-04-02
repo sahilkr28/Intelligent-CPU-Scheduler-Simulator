@@ -1,324 +1,421 @@
-#pip install matplotlib numpy
-# python main.py
-import tkinter as tk
-from tkinter import ttk, messagebox
-import plotly.graph_objects as go
-import plotly.express as px
+import streamlit as st
 import pandas as pd
-import numpy as np
-from scheduling_algorithms import Process, fcfs_scheduling, sjf_scheduling, round_robin_scheduling, priority_scheduling
+import plotly.graph_objects as go 
+import plotly.express as px
+from scheduling_algorithms import *
 
-class DarkCPUScheduler:
-    def __init__(self, root):
-        self.root = root
-        self.root.geometry("1400x900")
-        
-        # Dark theme colors
-        self.colors = {
-            'bg': '#1a1a1a',
-            'card': '#2d2d2d',
-            'text': '#ffffff',
-            'accent1': '#61afef',
-            'accent2': '#98c379',
-            'accent3': '#e06c75',
-            'grid': '#3d3d3d'
+# Set page config with custom theme
+st.set_page_config(
+    page_title="CPU Scheduler Simulator",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for modern styling
+st.markdown("""
+    <style>
+        /* Main theme colors */
+        :root {
+            --primary-color: #00ff9d;
+            --secondary-color: #ff3366;
+            --background-color: #0e1117;
+            --text-color: #ffffff;
+            --card-bg: #1a1c23;
+            --border-color: #2a2d35;
         }
         
-        self.root.configure(bg=self.colors['bg'])
-        self.initialize_data()
-        self.setup_styles()
-        self.create_layout()
-
-    def initialize_data(self):
-        self.processes = []
-        self.process_counter = 1
-        self.algo_var = None
-        self.quantum_frame = None
-        self.quantum_entry = None
-
-    def setup_styles(self):
-        style = ttk.Style()
-        style.configure('Dark.TFrame', background=self.colors['bg'])
-        style.configure('Dark.TLabel', 
-                       background=self.colors['bg'],
-                       foreground=self.colors['text'],
-                       font=('Arial', 10))
-        style.configure('Header.TLabel',
-                       background=self.colors['bg'],
-                       foreground=self.colors['accent1'],
-                       font=('Arial', 14, 'bold'))
-
-    def create_layout(self):
-        # Main container
-        self.main_frame = ttk.Frame(self.root, style='Dark.TFrame')
-        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-
-        # Left panel for input and process queue
-        self.left_panel = self.create_left_panel()
-        self.left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Right panel for results and visualizations
-        self.right_panel = self.create_right_panel()
-        self.right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-    def create_left_panel(self):
-        panel = ttk.Frame(self.main_frame, style='Dark.TFrame')
+        /* General styling */
+        .stApp {
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
         
-        # Process Input Section
-        input_frame = ttk.LabelFrame(panel, text="Add New Process", 
-                                   style='Dark.TFrame', padding=10)
-        input_frame.pack(fill=tk.X, pady=10)
-
-        # Input fields
-        fields = [("PID", self.process_counter), 
-                 ("Arrival Time", 0),
-                 ("Burst Time", 1),
-                 ("Priority", 0)]
-
-        self.entries = {}
-        for i, (label, default) in enumerate(fields):
-            container = ttk.Frame(input_frame, style='Dark.TFrame')
-            container.pack(fill=tk.X, pady=5)
-            
-            ttk.Label(container, text=f"{label}:", 
-                     style='Dark.TLabel').pack(side=tk.LEFT)
-            
-            entry = tk.Entry(container, bg=self.colors['card'],
-                           fg=self.colors['text'],
-                           insertbackground=self.colors['text'])
-            entry.pack(side=tk.RIGHT, expand=True)
-            entry.insert(0, str(default))
-            self.entries[label] = entry
-
-        # Add Process Button
-        tk.Button(input_frame, text="Add Process",
-                 bg=self.colors['accent2'],
-                 fg=self.colors['text'],
-                 command=self.add_process).pack(fill=tk.X, pady=10)
-
-        # Process Queue
-        self.create_process_queue(panel)
+        /* Title and Headers */
+        .title-container {
+            text-align: center;
+            padding: 2rem 0;
+            background: linear-gradient(45deg, rgba(0, 255, 157, 0.1), rgba(255, 51, 102, 0.1));
+            border-radius: 15px;
+            margin-bottom: 2rem;
+        }
         
-        return panel
-
-    def create_process_queue(self, parent):
-        queue_frame = ttk.LabelFrame(parent, text="Process Queue",
-                                   style='Dark.TFrame', padding=10)
-        queue_frame.pack(fill=tk.BOTH, expand=True, pady=10)
-
-        # Create DataFrame display
-        self.queue_text = tk.Text(queue_frame,
-                                bg=self.colors['card'],
-                                fg=self.colors['text'],
-                                height=10)
-        self.queue_text.pack(fill=tk.BOTH, expand=True)
-
-        # Algorithm Selection
-        algo_frame = ttk.Frame(queue_frame, style='Dark.TFrame')
-        algo_frame.pack(fill=tk.X, pady=10)
-
-        self.algo_var = tk.StringVar(value="FCFS")
-        algorithms = ["FCFS", "SJF (Non-preemptive)", 
-                     "SRTF (Preemptive)", "Round Robin", "Priority"]
-
-        for algo in algorithms:
-            tk.Radiobutton(algo_frame, text=algo,
-                          variable=self.algo_var,
-                          value=algo,
-                          bg=self.colors['bg'],
-                          fg=self.colors['text'],
-                          selectcolor=self.colors['card'],
-                          command=self.on_algorithm_change).pack(side=tk.LEFT)
-
-        # Time Quantum input
-        self.quantum_frame = ttk.Frame(queue_frame, style='Dark.TFrame')
-        ttk.Label(self.quantum_frame, text="Time Quantum:",
-                 style='Dark.TLabel').pack(side=tk.LEFT)
-        self.quantum_entry = tk.Entry(self.quantum_frame,
-                                    bg=self.colors['card'],
-                                    fg=self.colors['text'])
-        self.quantum_entry.pack(side=tk.RIGHT)
-        self.quantum_entry.insert(0, "2")
-        self.quantum_frame.pack_forget()  # Hide initially
-
-        # Run Button
-        tk.Button(queue_frame, text="Run Simulation",
-                 bg=self.colors['accent1'],
-                 fg=self.colors['text'],
-                 command=self.run_simulation).pack(fill=tk.X, pady=10)
-
-    def create_right_panel(self):
-        panel = ttk.Frame(self.main_frame, style='Dark.TFrame')
+        h1 { 
+            font-size: 50px !important;
+            color: var(--primary-color) !important;
+            text-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
+            font-weight: 800 !important;
+            margin-bottom: 0.5rem !important;
+        }
         
-        # Results header
-        ttk.Label(panel, text="Simulation Results", 
-                 style='Header.TLabel').pack(pady=10)
+        h3 { 
+            font-size: 26px !important;
+            color: var(--secondary-color) !important;
+            font-weight: 700 !important;
+            margin-bottom: 1rem !important;
+        }
+        
+        /* Metrics */
+        .metric-container { 
+            font-size: 22px !important;
+            background-color: var(--card-bg) !important;
+            padding: 15px !important;
+            border-radius: 10px !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+            border: 1px solid var(--primary-color) !important;
+        }
+        
+        /* DataFrames */
+        .stDataFrame { 
+            font-size: 18px !important;
+            background-color: var(--card-bg) !important;
+            border-radius: 10px !important;
+            padding: 10px !important;
+            border: 1px solid var(--border-color) !important;
+        }
+        
+        /* Buttons */
+        .stButton>button {
+            background-color: var(--primary-color) !important;
+            color: var(--background-color) !important;
+            border-radius: 5px !important;
+            padding: 10px 20px !important;
+            font-weight: bold !important;
+            transition: all 0.3s ease !important;
+            border: none !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+        }
+        
+        .stButton>button:hover {
+            background-color: var(--secondary-color) !important;
+            transform: translateY(-2px);
+        }
+        
+        /* Input fields */
+        .stNumberInput>div>div>input {
+            background-color: var(--card-bg) !important;
+            color: var(--text-color) !important;
+            border: 1px solid var(--primary-color) !important;
+            border-radius: 5px !important;
+        }
+        
+        /* Selectbox */
+        .stSelectbox>div>div>select {
+            background-color: var(--card-bg) !important;
+            color: var(--text-color) !important;
+            border: 1px solid var(--primary-color) !important;
+            border-radius: 5px !important;
+        }
+        
+        /* Radio buttons */
+        .stRadio>div>div>div {
+            background-color: var(--card-bg) !important;
+            color: var(--text-color) !important;
+            border: 1px solid var(--primary-color) !important;
+            border-radius: 5px !important;
+        }
+        
+        /* Expander */
+        .streamlit-expanderHeader {
+            background-color: var(--card-bg) !important;
+            color: var(--text-color) !important;
+            border-radius: 5px !important;
+            padding: 10px !important;
+            margin-bottom: 10px !important;
+            border: 1px solid var(--primary-color) !important;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--background-color);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00cc7d;
+        }
+        
+        /* Success message */
+        .stSuccess {
+            background-color: rgba(0, 255, 157, 0.1) !important;
+            border: 1px solid var(--primary-color) !important;
+            border-radius: 5px !important;
+            padding: 10px !important;
+        }
+        
+        /* Error message */
+        .stError {
+            background-color: rgba(255, 51, 102, 0.1) !important;
+            border: 1px solid var(--secondary-color) !important;
+            border-radius: 5px !important;
+            padding: 10px !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-        # Create frames for visualizations
-        self.gantt_frame = ttk.LabelFrame(panel, text="Gantt Chart",
-                                        style='Dark.TFrame', padding=10)
-        self.gantt_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+# Title with custom container
+st.markdown("""
+    <div class="title-container">
+        <h1>⏱️ SMART CPU SIMULATOR</h1>
+        <h3>Explore different CPU scheduling algorithms and their performance metrics 📈</h3>
+    </div>
+""", unsafe_allow_html=True)
 
-        self.metrics_frame = ttk.LabelFrame(panel, text="Performance Metrics",
-                                          style='Dark.TFrame', padding=10)
-        self.metrics_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+# Initialize session state
+if 'processes' not in st.session_state:
+    st.session_state.processes = []
 
-        return panel
+# Process Input Form
+with st.expander("Add New Process", expanded=True):
+    col1, col2, col3, col4 = st.columns(4)
 
-    def on_algorithm_change(self):
-        """Handle algorithm selection changes"""
-        selected_algo = self.algo_var.get()
-        if selected_algo == "Round Robin":
-            self.quantum_frame.pack(fill=tk.X, pady=5)
-        else:
-            self.quantum_frame.pack_forget()
+    with col1:
+        pid = st.number_input("Process ID", min_value=1, value=len(st.session_state.processes) + 1)
+    with col2:
+        arrival = st.number_input("Arrival Time", min_value=0, value=0)
+    with col3:
+        burst = st.number_input("Burst Time", min_value=1, value=1)
+    with col4:
+        priority = st.number_input("Priority", min_value=0, value=0)
 
-    def add_process(self):
-        """Add a new process to the queue"""
-        try:
-            process = Process(
-                pid=int(self.entries["PID"].get()),
-                arrival=int(self.entries["Arrival Time"].get()),
-                burst=int(self.entries["Burst Time"].get()),
-                priority=int(self.entries["Priority"].get())
-            )
-            self.processes.append(process)
-            self.process_counter += 1
-            self.entries["PID"].delete(0, tk.END)
-            self.entries["PID"].insert(0, str(self.process_counter))
-            self.update_queue_display()
-        except ValueError:
-            messagebox.showerror("Error", "Please enter valid numbers")
+    if st.button("Add Process", use_container_width=True):
+        new_process = Process(pid, arrival, burst, priority)
+        st.session_state.processes.append(new_process)
+        st.success(f"Process {pid} added successfully!")
 
-    def update_queue_display(self):
-        """Update the process queue display"""
-        self.queue_text.delete(1.0, tk.END)
-        for p in self.processes:
-            self.queue_text.insert(tk.END, 
-                f"P{p.pid}: Arrival={p.arrival}, Burst={p.burst}, Priority={p.priority}\n")
+# Display Process Table
+if st.session_state.processes:
+    st.subheader("Process Table")
+    process_df = pd.DataFrame(sorted([
+        {
+            "PID": p.pid,
+            "Arrival Time": p.arrival,
+            "Burst Time": p.burst,
+            "Priority": p.priority
+        } for p in st.session_state.processes
+    ], key=lambda x: x["PID"], reverse=False))
+    st.dataframe(process_df, use_container_width=True)
 
-    def run_simulation(self):
-        """Run the selected scheduling algorithm"""
-        if not self.processes:
-            messagebox.showerror("Error", "Please add some processes first!")
-            return
-
-        algorithm = self.algo_var.get()
-        try:
-            processes_copy = [Process(p.pid, p.arrival, p.burst, p.priority) for p in self.processes]
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Clear All Processes", use_container_width=True):
+            st.session_state.processes = []
+            st.rerun()
+    with col2:
+        delete_pid = st.selectbox("Select Process to Delete", [p.pid for p in st.session_state.processes])
+        if st.button("Delete Selected Process", use_container_width=True):
+            st.session_state.processes = [p for p in st.session_state.processes if p.pid != delete_pid]
+            st.rerun()
             
-            if algorithm == "FCFS":
-                processes, gantt_data, switches = fcfs_scheduling(processes_copy)
-            elif algorithm == "SJF (Non-preemptive)":
-                processes, gantt_data, switches = sjf_scheduling(processes_copy, preemptive=False)
-            elif algorithm == "SRTF (Preemptive)":
-                processes, gantt_data, switches = sjf_scheduling(processes_copy, preemptive=True)
-            elif algorithm == "Round Robin":
-                try:
-                    quantum = int(self.quantum_entry.get())
-                    if quantum <= 0:
-                        raise ValueError("Time quantum must be positive")
-                    processes, gantt_data, switches = round_robin_scheduling(processes_copy, quantum)
-                except ValueError as e:
-                    messagebox.showerror("Error", str(e))
-                    return
-            else:  # Priority
-                processes, gantt_data, switches = priority_scheduling(processes_copy)
+# Scheduling Algorithm Selection
+st.subheader("Select Scheduling Algorithm")
+col1, col2 = st.columns(2)
 
-            self.show_results(processes, gantt_data, switches)
-        except ValueError as e:
-            messagebox.showerror("Error", f"Simulation error: {str(e)}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+with col1:
+    algorithm = st.selectbox(
+        "Algorithm",
+        ["FCFS", "SJF (Non-preemptive)", "SRTF (Preemptive)", "Round Robin", "Priority"]
+    )
 
-    def show_results(self, processes, gantt_data, switches):
-        """Display simulation results"""
-        # Clear previous results
-        for widget in self.gantt_frame.winfo_children():
-            widget.destroy()
-        for widget in self.metrics_frame.winfo_children():
-            widget.destroy()
+with col2:
+    if algorithm == "Priority":
+        priority_order = st.radio("Priority Order", ["Lower number = Higher Priority", "Higher number = Higher Priority"])
+
+    if algorithm == "Round Robin":
+        time_quantum = st.number_input("Time Quantum", min_value=1, value=2)
+
+# Run Simulation
+if st.session_state.processes and st.button("Run Simulation", use_container_width=True):
+    if not st.session_state.processes:
+        st.error("Please add processes first!")
+    else:
+        # Run selected algorithm
+        if algorithm == "FCFS":
+            processes, gantt_data, switches = fcfs_scheduling(st.session_state.processes)
+        elif algorithm == "SJF (Non-preemptive)":
+            processes, gantt_data, switches = sjf_scheduling(st.session_state.processes, preemptive=False)
+        elif algorithm == "SRTF (Preemptive)":
+            processes, gantt_data, switches = sjf_scheduling(st.session_state.processes, preemptive=True)
+        elif algorithm == "Round Robin":
+            processes, gantt_data, switches = round_robin_scheduling(st.session_state.processes, time_quantum)
+        else:  # Priority
+            processes, gantt_data, switches = priority_scheduling(st.session_state.processes, ascending=(priority_order == "Lower number = Higher Priority"))
 
         # Calculate metrics
-        avg_turnaround = sum(p.turnaround_time for p in processes) / len(processes)
-        avg_waiting = sum(p.waiting_time for p in processes) / len(processes)
-        avg_response = sum(p.response_time for p in processes) / len(processes)
+        avg_turnaround, avg_waiting, avg_response = calculate_metrics(processes)
 
-        # Create metrics display
-        metrics_text = (
-            f"Average Turnaround Time: {avg_turnaround:.2f}\n"
-            f"Average Waiting Time: {avg_waiting:.2f}\n"
-            f"Average Response Time: {avg_response:.2f}\n"
-            f"Context Switches: {switches}"
+        processes.sort(key=lambda p: p.pid)
+
+        # Display Gantt Chart
+        st.subheader("Gantt Chart")
+
+        # Create figure with secondary y-axis
+        fig = go.Figure()
+
+        # Add bars for each process
+        for p_id, start, end in gantt_data:
+            fig.add_trace(go.Bar(
+                x=[end - start],
+                y=[f"P{p_id}"],
+                orientation='h',
+                base=[start],
+                marker_color=px.colors.qualitative.Set3[p_id % len(px.colors.qualitative.Set3)],
+                name=f"P{p_id}",
+                text=f"P{p_id} ({start}-{end})",
+                textposition="inside",
+                hoverinfo="text",
+                showlegend=False
+            ))
+
+        # Update layout with dark theme
+        fig.update_layout(
+            barmode='overlay',
+            xaxis=dict(
+                title="Time",
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='#2a2d35',
+                zeroline=True,
+                zerolinewidth=2,
+                zerolinecolor='#00ff9d',
+                color='#ffffff'
+            ),
+            yaxis=dict(
+                title="Process",
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='#2a2d35',
+                color='#ffffff'
+            ),
+            height=50 + (len(st.session_state.processes) * 40),
+            margin=dict(l=100, r=100, t=30, b=30),
+            plot_bgcolor='#1a1c23',
+            paper_bgcolor='#1a1c23',
+            font=dict(color='#ffffff')
         )
-        
-        metrics_label = ttk.Label(self.metrics_frame, 
-                                text=metrics_text,
-                                style='Dark.TLabel')
-        metrics_label.pack(pady=10)
 
-        # Create results table
-        results_frame = ttk.Frame(self.metrics_frame, style='Dark.TFrame')
-        results_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        st.plotly_chart(fig, use_container_width=True)
 
-        # Headers
-        headers = ["PID", "Arrival", "Burst", "Completion", "Turnaround", "Waiting", "Response"]
-        for col, header in enumerate(headers):
-            ttk.Label(results_frame, text=header,
-                     style='Dark.TLabel').grid(row=0, column=col, padx=5, pady=5)
+        # Display Metrics
+        col1, col2, col3, col4 = st.columns(4)
 
-        # Process data
-        for row, p in enumerate(processes, start=1):
-            data = [p.pid, p.arrival, p.burst, p.completion_time,
-                    p.turnaround_time, p.waiting_time, p.response_time]
-            for col, value in enumerate(data):
-                ttk.Label(results_frame, text=str(value),
-                         style='Dark.TLabel').grid(row=row, column=col, padx=5, pady=2)
+        with col1:
+            st.metric("Avg Turnaround Time", f"{avg_turnaround:.2f}")
+        with col2:
+            st.metric("Avg Waiting Time", f"{avg_waiting:.2f}")
+        with col3:
+            st.metric("Avg Response Time", f"{avg_response:.2f}")
+        with col4:
+            st.metric("Context Switches", switches)
 
-        # Create Gantt chart
-        self.create_gantt_chart(gantt_data)
+        # Process Details Table
+        st.subheader("Process Details")
+        details_df = pd.DataFrame([
+            {
+                "PID": p.pid,
+                "Completion Time": p.completion_time,
+                "Turnaround Time": p.turnaround_time,
+                "Waiting Time": p.waiting_time,
+                "Response Time": p.response_time
+            } for p in processes
+        ])
+        st.dataframe(details_df, use_container_width=True)
 
-    def create_gantt_chart(self, gantt_data):
-        """Create a simple Gantt chart using tkinter canvas"""
-        canvas_height = 100
-        canvas_width = 600
-        time_scale = canvas_width / (max(end for _, _, end in gantt_data) + 1)
-        
-        canvas = tk.Canvas(self.gantt_frame, 
-                          height=canvas_height,
-                          width=canvas_width,
-                          bg=self.colors['card'])
-        canvas.pack(pady=10)
+        # Time Distribution and Time Metrics Visualization
+        st.subheader("Process Time Analysis")
+        col1, col2 = st.columns(2)
 
-        # Draw time axis
-        canvas.create_line(0, canvas_height-20, canvas_width, canvas_height-20,
-                          fill=self.colors['text'])
+        with col1:
+            st.write("Time Distribution")
+            time_dist_fig = go.Figure()
 
-        # Draw process blocks
-        y_top = 20
-        y_bottom = canvas_height - 40
-        for pid, start, end in gantt_data:
-            x1 = start * time_scale
-            x2 = end * time_scale
-            
-            # Process block
-            canvas.create_rectangle(x1, y_top, x2, y_bottom,
-                                  fill=self.colors['accent1'])
-            
-            # Process label
-            canvas.create_text((x1 + x2) / 2, (y_top + y_bottom) / 2,
-                              text=f"P{pid}",
-                              fill=self.colors['text'])
-            
-            # Time labels
-            canvas.create_text(x1, canvas_height-10,
-                              text=str(start),
-                              fill=self.colors['text'])
-            canvas.create_text(x2, canvas_height-10,
-                              text=str(end),
-                              fill=self.colors['text'])
+            # Add Waiting Time bars
+            time_dist_fig.add_trace(go.Bar(
+                name='Waiting Time',
+                x=[f'P{p.pid}' for p in processes],
+                y=[p.waiting_time for p in processes],
+                marker_color='#ff3366',
+                width=0.3
+            ))
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = DarkCPUScheduler(root)
-    root.mainloop()  
+            # Add Burst Time bars
+            time_dist_fig.add_trace(go.Bar(
+                name='Burst Time',
+                x=[f'P{p.pid}' for p in processes],
+                y=[p.burst for p in processes],
+                marker_color='#00ff9d',
+                width=0.3
+            ))
+
+            time_dist_fig.update_layout(
+                barmode='stack',
+                plot_bgcolor='#1a1c23',
+                paper_bgcolor='#1a1c23',
+                font=dict(color='#ffffff'),
+                xaxis=dict(gridcolor='#2a2d35'),
+                yaxis=dict(gridcolor='#2a2d35'),
+                bargap=0.4,
+                xaxis_title="Process ID",
+                yaxis_title="Time",
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
+            )
+            st.plotly_chart(time_dist_fig, use_container_width=True)
+
+        with col2:
+            st.write("Time Metrics")
+            metrics_fig = go.Figure()
+
+            # Add Response Time bars
+            metrics_fig.add_trace(go.Bar(
+                name='Response Time',
+                x=[f'P{p.pid}' for p in processes],
+                y=[p.response_time for p in processes],
+                marker_color='#00ff9d',
+                width=0.2
+            ))
+
+            # Add Turnaround Time bars
+            metrics_fig.add_trace(go.Bar(
+                name='Turnaround Time',
+                x=[f'P{p.pid}' for p in processes],
+                y=[p.turnaround_time for p in processes],
+                marker_color='#ff3366',
+                width=0.2
+            ))
+
+            metrics_fig.update_layout(
+                barmode='group',
+                plot_bgcolor='#1a1c23',
+                paper_bgcolor='#1a1c23',
+                font=dict(color='#ffffff'),
+                xaxis=dict(gridcolor='#2a2d35'),
+                yaxis=dict(gridcolor='#2a2d35'),
+                bargap=0.3,
+                bargroupgap=0.1,
+                xaxis_title="Process ID",
+                yaxis_title="Time",
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
+            )
+            st.plotly_chart(metrics_fig, use_container_width=True)

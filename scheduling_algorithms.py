@@ -17,17 +17,13 @@ class Process:
     def __post_init__(self):
         self.remaining_burst = self.burst
 
-    def __repr__(self):
-        return f"P{self.pid}(A:{self.arrival}, B:{self.burst}, P:{self.priority})"
-
 def calculate_metrics(processes: List[Process]):
     avg_turnaround = np.mean([p.turnaround_time for p in processes])
     avg_waiting = np.mean([p.waiting_time for p in processes])
     avg_response = np.mean([p.response_time for p in processes])
     return avg_turnaround, avg_waiting, avg_response
 
-def fcfs_scheduling(processes):
-    """First Come First Serve scheduling algorithm"""
+def fcfs_scheduling(processes: List[Process]) -> Tuple[List[Process], List[tuple], int]:
     processes = sorted(processes, key=lambda x: x.arrival)
     current_time = 0
     gantt_data = []
@@ -49,96 +45,176 @@ def fcfs_scheduling(processes):
 
     return processes, gantt_data, context_switches - 1
 
-def sjf_scheduling(processes):
-    """Shortest Job First scheduling algorithm"""
+def sjf_scheduling(processes: List[Process], preemptive: bool = False) -> Tuple[List[Process], List[tuple], int]:
+    processes = [Process(p.pid, p.arrival, p.burst, p.priority) for p in processes]
     current_time = 0
-    remaining_processes = sorted(processes, key=lambda x: x.arrival)
-    gantt_chart = []
-    scheduled_processes = []
+    completed = []
+    gantt_data = []
+    context_switches = 0
+    last_pid = None  # Track the last executed process
 
-    while remaining_processes:
-        available = [p for p in remaining_processes if p.arrival <= current_time]
+    while processes:
+        available = [p for p in processes if p.arrival <= current_time]
+
         if not available:
-            current_time = min(p.arrival for p in remaining_processes)
+            current_time = min(p.arrival for p in processes)
+            last_pid = None  # No process running, reset last executed process
             continue
 
-        selected = min(available, key=lambda x: x.burst)
-        remaining_processes.remove(selected)
-
-        p = Process(selected.pid, selected.arrival, selected.burst, selected.priority)
-        p.waiting_time = current_time - p.arrival
-        p.completion_time = current_time + p.burst
-        p.turnaround_time = p.completion_time - p.arrival
-        gantt_chart.append((p.pid, current_time, p.completion_time))
-        current_time = p.completion_time
-        scheduled_processes.append(p)
-
-    return scheduled_processes, gantt_chart
-
-def round_robin_scheduling(processes, time_quantum):
-    """Round Robin scheduling algorithm"""
-    if not processes:
-        return [], []
+        if preemptive:
+            process = min(available, key=lambda x: x.remaining_burst or float('inf'))
+            
+            if process.response_time == -1:
+                process.response_time = current_time - process.arrival
+            
+            execution_time = 1
+            process.remaining_burst -= execution_time
+            gantt_data.append((process.pid, current_time, current_time + execution_time))
+            
+            if last_pid is not None and last_pid != process.pid:
+                context_switches += 1  # Count context switch when switching processes
+            
+            last_pid = process.pid  # Update last executed process
+            current_time += execution_time
+            
+            if process.remaining_burst == 0:
+                process.completion_time = current_time
+                process.turnaround_time = process.completion_time - process.arrival
+                process.waiting_time = process.turnaround_time - process.burst
+                completed.append(process)
+                processes.remove(process)
+        else:
+            process = min(available, key=lambda x: x.burst)
+            
+            if process.response_time == -1:
+                process.response_time = current_time - process.arrival
+            
+            process.completion_time = current_time + process.burst
+            process.turnaround_time = process.completion_time - process.arrival
+            process.waiting_time = process.turnaround_time - process.burst
+            gantt_data.append((process.pid, current_time, process.completion_time))
+            
+            if last_pid is not None and last_pid != process.pid:
+                context_switches += 1  # Count context switch when switching processes
+            
+            last_pid = process.pid  # Update last executed process
+            current_time = process.completion_time
+            completed.append(process)
+            processes.remove(process)
     
+    return completed, gantt_data, context_switches
+
+from typing import List, Tuple
+
+class Process:
+    def __init__(self, pid, arrival, burst, priority=0):
+        self.pid = pid
+        self.arrival = arrival
+        self.burst = burst
+        self.remaining_burst = burst
+        self.priority = priority
+        self.response_time = -1
+        self.completion_time = 0
+        self.turnaround_time = 0
+        self.waiting_time = 0
+
+def round_robin_scheduling(processes: List[Process], time_quantum: int) -> Tuple[List[Process], List[tuple], int]:
+    processes = sorted([Process(p.pid, p.arrival, p.burst, p.priority) for p in processes], key=lambda p: p.arrival)
     current_time = 0
-    remaining_processes = sorted(processes, key=lambda x: x.arrival)
-    gantt_chart = []
-    scheduled_processes = [Process(p.pid, p.arrival, p.burst, p.priority) for p in processes]
-    ready_queue = []
-    remaining_bursts = {p.pid: p.burst for p in processes}
+    completed = []
+    gantt_data = []
+    queue = []
+    last_executed_pid = None  # Track last executed process
+    context_switches = 0
 
-    while remaining_processes or ready_queue:
-        while remaining_processes and remaining_processes[0].arrival <= current_time:
-            ready_queue.append(remaining_processes.pop(0))
+    while processes or queue:
+        while processes and processes[0].arrival <= current_time:
+            queue.append(processes.pop(0))
 
-        if not ready_queue:
-            if remaining_processes:
-                current_time = remaining_processes[0].arrival
-                continue
-            break
+        if not queue:
+            current_time = processes[0].arrival if processes else current_time
+            continue
 
-        current_process = ready_queue.pop(0)
-        execution_time = min(time_quantum, remaining_bursts[current_process.pid])
-        gantt_chart.append((current_process.pid, current_time, current_time + execution_time))
-        remaining_bursts[current_process.pid] -= execution_time
+        process = queue.pop(0)
+
+        if process.response_time == -1:
+            process.response_time = current_time - process.arrival
+
+        execution_time = min(time_quantum, process.remaining_burst)
+        process.remaining_burst -= execution_time
+        gantt_data.append((process.pid, current_time, current_time + execution_time))
         current_time += execution_time
 
-        if remaining_bursts[current_process.pid] > 0:
-            while remaining_processes and remaining_processes[0].arrival <= current_time:
-                ready_queue.append(remaining_processes.pop(0))
-            ready_queue.append(current_process)
+        if last_executed_pid is not None and last_executed_pid != process.pid:
+            context_switches += 1
+        last_executed_pid = process.pid
+
+        while processes and processes[0].arrival <= current_time:
+            queue.append(processes.pop(0))
+
+        if process.remaining_burst > 0:
+            queue.append(process)
         else:
-            for p in scheduled_processes:
-                if p.pid == current_process.pid:
-                    p.completion_time = current_time
-                    p.turnaround_time = p.completion_time - p.arrival
-                    p.waiting_time = p.turnaround_time - p.burst
-                    break
+            process.completion_time = current_time
+            process.turnaround_time = process.completion_time - process.arrival
+            process.waiting_time = process.turnaround_time - process.burst
+            completed.append(process)
 
-    return scheduled_processes, gantt_chart
+    return completed, gantt_data, context_switches
 
-def priority_scheduling(processes):
-    """Priority scheduling algorithm (lower number = higher priority)"""
-    current_time = 0
-    remaining_processes = sorted(processes, key=lambda x: x.arrival)
+
+def priority_scheduling(processes: List[Process], ascending: bool = True) -> Tuple[List[Process], List[tuple], int]:
+    """
+    Implements Preemptive Priority Scheduling.
+    The user specifies whether lower numbers indicate higher priority (ascending=True) or vice versa.
+    """
+    # Define sorting order based on user input
+    priority_sort_order = (lambda p: p.priority) if ascending else (lambda p: -p.priority)
+
+    # Sort processes by arrival time first
+    processes = sorted(processes, key=lambda x: x.arrival)
+    
+    time = 0
     gantt_chart = []
-    scheduled_processes = []
+    completed = []
+    ready_queue = []
+    remaining_burst = {p.pid: p.burst for p in processes}
+    context_switches = 0
+    last_pid = None  # Track the last executed process
 
-    while remaining_processes:
-        available = [p for p in remaining_processes if p.arrival <= current_time]
-        if not available:
-            current_time = min(p.arrival for p in remaining_processes)
-            continue
+    while len(completed) < len(processes):
+        # Add processes that have arrived to the queue
+        for p in processes:
+            if p.arrival <= time and p not in ready_queue and p.pid not in [c.pid for c in completed]:
+                ready_queue.append(p)
 
-        selected = min(available, key=lambda x: (x.priority, x.arrival))
-        remaining_processes.remove(selected)
+        if ready_queue:
+            # Sort queue based on user-defined priority order
+            ready_queue.sort(key=priority_sort_order)
+            current_process = ready_queue[0]
 
-        p = Process(selected.pid, selected.arrival, selected.burst, selected.priority)
-        p.waiting_time = current_time - p.arrival
-        p.completion_time = current_time + p.burst
-        p.turnaround_time = p.completion_time - p.arrival
-        gantt_chart.append((p.pid, current_time, p.completion_time))
-        current_time = p.completion_time
-        scheduled_processes.append(p)
+            # Record response time when the process starts for the first time
+            if current_process.response_time == -1:
+                current_process.response_time = time - current_process.arrival
 
-    return scheduled_processes, gantt_chart
+            # If a different process is executed, increase context switch count
+            if last_pid is not None and last_pid != current_process.pid:
+                context_switches += 1
+
+            # Run process for 1 unit time (preemptive execution)
+            gantt_chart.append((current_process.pid, time, time + 1))
+            remaining_burst[current_process.pid] -= 1
+            last_pid = current_process.pid
+            time += 1
+
+            # If process is completed, update its metrics
+            if remaining_burst[current_process.pid] == 0:
+                current_process.completion_time = time
+                current_process.turnaround_time = current_process.completion_time - current_process.arrival
+                current_process.waiting_time = current_process.turnaround_time - current_process.burst
+                completed.append(current_process)
+                ready_queue.remove(current_process)
+        else:
+            time += 1  # If no process is ready, move forward in time
+
+    return completed, gantt_chart, context_switches
