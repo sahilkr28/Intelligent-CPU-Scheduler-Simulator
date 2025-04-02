@@ -27,7 +27,7 @@ st.markdown("""
         /* General styling */
         .stApp {
             background-color: var(--background-color);
-            color: var(--text-color);
+            color: var(--text-color) !important;
         }
         
         /* Title and Headers */
@@ -41,7 +41,7 @@ st.markdown("""
         
         h1 { 
             font-size: 50px !important;
-            color: var(--primary-color) !important;
+            color: var(--text-color) !important;
             text-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
             font-weight: 800 !important;
             margin-bottom: 0.5rem !important;
@@ -49,7 +49,7 @@ st.markdown("""
         
         h3 { 
             font-size: 26px !important;
-            color: var(--secondary-color) !important;
+            color: var(--text-color) !important;
             font-weight: 700 !important;
             margin-bottom: 1rem !important;
         }
@@ -62,6 +62,7 @@ st.markdown("""
             border-radius: 10px !important;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
             border: 1px solid var(--primary-color) !important;
+            color: var(--text-color) !important;
         }
         
         /* DataFrames */
@@ -71,6 +72,7 @@ st.markdown("""
             border-radius: 10px !important;
             padding: 10px !important;
             border: 1px solid var(--border-color) !important;
+            color: var(--text-color) !important;
         }
         
         /* Buttons */
@@ -149,6 +151,7 @@ st.markdown("""
             border: 1px solid var(--primary-color) !important;
             border-radius: 5px !important;
             padding: 10px !important;
+            color: var(--text-color) !important;
         }
         
         /* Error message */
@@ -157,6 +160,27 @@ st.markdown("""
             border: 1px solid var(--secondary-color) !important;
             border-radius: 5px !important;
             padding: 10px !important;
+            color: var(--text-color) !important;
+        }
+
+        /* Make all text white */
+        .stMarkdown, .stText, .stSelectbox label, .stRadio label, .stNumberInput label {
+            color: var(--text-color) !important;
+        }
+
+        /* DataFrame headers and cells */
+        .stDataFrame th, .stDataFrame td {
+            color: var(--text-color) !important;
+        }
+
+        /* Subheaders */
+        .stSubheader {
+            color: var(--text-color) !important;
+        }
+
+        /* Metric labels and values */
+        .stMetric label, .stMetric div {
+            color: var(--text-color) !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -164,8 +188,7 @@ st.markdown("""
 # Title with custom container
 st.markdown("""
     <div class="title-container">
-        <h1>⏱️ SMART CPU SIMULATOR</h1>
-        <h3>Explore different CPU scheduling algorithms and their performance metrics 📈</h3>
+        <h1> INTELLIGENT CPU SIMULATOR</h1>
     </div>
 """, unsafe_allow_html=True)
 
@@ -328,94 +351,3 @@ if st.session_state.processes and st.button("Run Simulation", use_container_widt
             } for p in processes
         ])
         st.dataframe(details_df, use_container_width=True)
-
-        # Time Distribution and Time Metrics Visualization
-        st.subheader("Process Time Analysis")
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.write("Time Distribution")
-            time_dist_fig = go.Figure()
-
-            # Add Waiting Time bars
-            time_dist_fig.add_trace(go.Bar(
-                name='Waiting Time',
-                x=[f'P{p.pid}' for p in processes],
-                y=[p.waiting_time for p in processes],
-                marker_color='#ff3366',
-                width=0.3
-            ))
-
-            # Add Burst Time bars
-            time_dist_fig.add_trace(go.Bar(
-                name='Burst Time',
-                x=[f'P{p.pid}' for p in processes],
-                y=[p.burst for p in processes],
-                marker_color='#00ff9d',
-                width=0.3
-            ))
-
-            time_dist_fig.update_layout(
-                barmode='stack',
-                plot_bgcolor='#1a1c23',
-                paper_bgcolor='#1a1c23',
-                font=dict(color='#ffffff'),
-                xaxis=dict(gridcolor='#2a2d35'),
-                yaxis=dict(gridcolor='#2a2d35'),
-                bargap=0.4,
-                xaxis_title="Process ID",
-                yaxis_title="Time",
-                showlegend=True,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                )
-            )
-            st.plotly_chart(time_dist_fig, use_container_width=True)
-
-        with col2:
-            st.write("Time Metrics")
-            metrics_fig = go.Figure()
-
-            # Add Response Time bars
-            metrics_fig.add_trace(go.Bar(
-                name='Response Time',
-                x=[f'P{p.pid}' for p in processes],
-                y=[p.response_time for p in processes],
-                marker_color='#00ff9d',
-                width=0.2
-            ))
-
-            # Add Turnaround Time bars
-            metrics_fig.add_trace(go.Bar(
-                name='Turnaround Time',
-                x=[f'P{p.pid}' for p in processes],
-                y=[p.turnaround_time for p in processes],
-                marker_color='#ff3366',
-                width=0.2
-            ))
-
-            metrics_fig.update_layout(
-                barmode='group',
-                plot_bgcolor='#1a1c23',
-                paper_bgcolor='#1a1c23',
-                font=dict(color='#ffffff'),
-                xaxis=dict(gridcolor='#2a2d35'),
-                yaxis=dict(gridcolor='#2a2d35'),
-                bargap=0.3,
-                bargroupgap=0.1,
-                xaxis_title="Process ID",
-                yaxis_title="Time",
-                showlegend=True,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                )
-            )
-            st.plotly_chart(metrics_fig, use_container_width=True)
