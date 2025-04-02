@@ -1,0 +1,13 @@
+Project Title: CPU Scheduling Algorithm Simulator
+
+Description:
+This project involves developing an interactive simulator for CPU scheduling algorithms, including First Come First Serve (FCFS), Shortest Job First (SJF), Round Robin (RR), and Priority Scheduling. The simulator will allow users to input process details such as arrival time, burst time, and priority and will generate real-time Gantt charts to visualize process execution. Additionally, it will compute and display key performance metrics like average waiting time, turnaround time, and response time, providing insights into the efficiency of different scheduling techniques.
+
+Key Features:
+✔ User Input Interface: Allows users to add processes dynamically.
+✔ Algorithm Implementation: Supports FCFS, SJF (preemptive & non-preemptive), Round Robin, and Priority Scheduling.
+✔ Real-Time Visualization: Displays Gantt charts for process execution.
+✔ Performance Analysis: Calculates and compares waiting time, turnaround time, and response time for different scheduling methods.
+✔ Interactive & Intuitive UI: Provides an engaging user experience for students and professionals studying OS scheduling concepts.
+
+This simulator serves as an educational tool, helping users understand and analyze CPU scheduling algorithms through hands-on interaction and visualization. 🚀
