@@ -314,16 +314,43 @@ with right_col:
             st.subheader(" Gantt Chart")
             fig = go.Figure()
 
+            # Define modern color palette that matches our theme
+            modern_colors = [
+                '#00ff9d',  # primary-color (green)
+                '#ff3366',  # secondary-color (pink)
+                '#9d00ff',  # accent-color (purple)
+                '#00ccff',  # cyan
+                '#ffcc00',  # yellow
+                '#ff9900',  # orange
+                '#ff00cc',  # magenta
+                '#00ffff',  # aqua
+                '#ff6600',  # dark orange
+                '#cc00ff'   # violet
+            ]
+
             for p_id, start, end in gantt_data:
+                color_idx = (p_id - 1) % len(modern_colors)
                 fig.add_trace(go.Bar(
                     x=[end - start],
                     y=[f"P{p_id}"],
                     orientation='h',
                     base=[start],
-                    marker_color=px.colors.qualitative.Set3[p_id % len(px.colors.qualitative.Set3)],
+                    marker=dict(
+                        color=modern_colors[color_idx],
+                        opacity=0.8,
+                        line=dict(
+                            color='rgba(255, 255, 255, 0.2)',
+                            width=2
+                        )
+                    ),
                     name=f"P{p_id}",
                     text=f"P{p_id} ({start}-{end})",
                     textposition="inside",
+                    textfont=dict(
+                        color='#ffffff',
+                        size=14,
+                        family="Arial Black"
+                    ),
                     hoverinfo="text",
                     showlegend=False
                 ))
@@ -331,27 +358,70 @@ with right_col:
             fig.update_layout(
                 barmode='overlay',
                 xaxis=dict(
-                    title="Time",
+                    title=dict(
+                        text="Time",
+                        font=dict(
+                            size=16,
+                            color='#ffffff'
+                        )
+                    ),
                     showgrid=True,
                     gridwidth=1,
                     gridcolor='rgba(255, 255, 255, 0.1)',
                     zeroline=True,
                     zerolinewidth=2,
-                    zerolinecolor='var(--primary-color)',
-                    color='#ffffff'
+                    zerolinecolor='#00ff9d',
+                    color='#ffffff',
+                    tickfont=dict(
+                        size=14,
+                        color='#ffffff'
+                    )
                 ),
                 yaxis=dict(
-                    title="Process",
+                    title=dict(
+                        text="Process",
+                        font=dict(
+                            size=16,
+                            color='#ffffff'
+                        )
+                    ),
                     showgrid=True,
                     gridwidth=1,
                     gridcolor='rgba(255, 255, 255, 0.1)',
-                    color='#ffffff'
+                    color='#ffffff',
+                    tickfont=dict(
+                        size=14,
+                        color='#ffffff'
+                    )
                 ),
-                height=50 + (len(st.session_state.processes) * 40),
-                margin=dict(l=100, r=100, t=30, b=30),
+                height=max(200, 50 + (len(st.session_state.processes) * 40)),
+                margin=dict(l=100, r=100, t=30, b=50),
                 plot_bgcolor='rgba(26, 28, 35, 0.8)',
                 paper_bgcolor='rgba(26, 28, 35, 0)',
-                font=dict(color='#ffffff')
+                font=dict(
+                    color='#ffffff',
+                    size=14
+                ),
+                hoverlabel=dict(
+                    bgcolor='rgba(26, 28, 35, 0.9)',
+                    font_size=14,
+                    font_family="Arial"
+                ),
+                shapes=[
+                    # Add a subtle gradient overlay
+                    dict(
+                        type='rect',
+                        xref='paper',
+                        yref='paper',
+                        x0=0,
+                        y0=0,
+                        x1=1,
+                        y1=1,
+                        fillcolor='rgba(0, 255, 157, 0.05)',
+                        layer='above',
+                        line_width=0,
+                    )
+                ]
             )
 
             st.plotly_chart(fig, use_container_width=True)
