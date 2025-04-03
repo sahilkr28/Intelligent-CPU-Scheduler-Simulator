@@ -164,6 +164,13 @@ st.markdown("""
             border: 1px solid var(--accent-color) !important;
         }
         
+        /* Radio button labels */
+        .stRadio label {
+            color: var(--text-color) !important;
+            font-size: 16px !important;
+            font-weight: 500 !important;
+        }
+        
         /* Success message */
         .stSuccess {
             background: linear-gradient(45deg, rgba(0, 255, 157, 0.1), rgba(157, 0, 255, 0.1)) !important;
