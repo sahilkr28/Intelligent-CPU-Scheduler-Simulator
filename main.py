@@ -258,7 +258,7 @@ with left_col:
             if st.button(f"Delete (P{delete_pid})", use_container_width=True):
                 st.session_state.processes = [p for p in st.session_state.processes if p.pid != delete_pid]
                 st.rerun()
-
+            
     st.subheader("⚙️ Algorithm Selection")
     algorithm = st.selectbox(
         "Choose Algorithm",
@@ -449,4 +449,4 @@ with right_col:
             ])
             st.dataframe(details_df, use_container_width=True)
     
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True) 
